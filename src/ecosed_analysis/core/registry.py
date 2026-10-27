@@ -11,8 +11,8 @@ class VariableSpec:
 
 
 SPECS = {
-    "phytoplankton": VariableSpec("phy_biomass", ("pelagic_phy",), "solid", "Phytoplankton"),
-    "zooplankton": VariableSpec("zoo_biomass", ("pelagic_zoo",), "solid", "Zooplankton"),
+    "phytoplankton": VariableSpec("phy_biomass", ("pelagic_phy",), label="Phytoplankton"),
+    "zooplankton": VariableSpec("zoo_biomass", ("pelagic_zoo",), label="Zooplankton"),
     "nitrate": VariableSpec("nitrogen_no3", sediment_phase="porewater", label="Nitrate"),
     "ammonium": VariableSpec("nitrogen_nh4", sediment_phase="porewater", label="Ammonium"),
     "oxygen": VariableSpec("oxygen_o2", sediment_phase="porewater", label="Oxygen"),
