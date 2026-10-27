@@ -51,3 +51,45 @@ def test_alias():
     ds = example(False).rename({"nitrogen_no3": "old_no3"})
     with pytest.raises(ValueError, match="Expected exactly one"):
         resolve_variable(ds, "nitrate")
+
+
+def test_variable_porosity_multilayer():
+    ds = xr.Dataset({
+        "dz": ("depth", [2.0, 0.01, 0.02]),
+        "sediment_mask": ("depth", [0, 1, 1]),
+        "porosity": ("depth", [1.0, 0.8, 0.6]),
+        "nitrogen_no3": ("depth", [100.0, 100.0, 100.0]),
+        "remin_pom_r": ("depth", [100.0, 100.0, 100.0]),
+    }, coords={"depth": [1.0, 2.005, 2.02], "depth_interface": [0, 2, 2.01, 2.03]})
+    assert np.isclose(float(vertical_integral(ds, "nitrate", domain="sediment")), 2.0)
+    assert np.isclose(float(vertical_integral(ds, "pom_refractory", domain="sediment")), 1.0)
+
+@pytest.mark.parametrize("invalid", [np.nan, -0.1, 1.1, 0.0, 1.0])
+def test_invalid_sediment_porosity(invalid):
+    ds = example()
+    ds["porosity"][-1] = invalid
+    with pytest.raises(ValueError, match="Sediment porosity"):
+        vertical_integral(ds, "nitrate", domain="sediment")
+
+def test_nonfinite_sediment_concentration_rejected():
+    ds = example()
+    ds["nitrogen_no3"][-1] = np.nan
+    with pytest.raises(ValueError, match="Non-finite"):
+        vertical_integral(ds, "nitrate", domain="sediment")
+
+def test_discontiguous_sediment_mask_rejected():
+    ds = example()
+    ds["sediment_mask"] = ("depth", [1, 0, 1])
+    with pytest.raises(ValueError, match="contiguous"):
+        inspect_dataset(ds)
+
+def test_time_dependent_concentrations_static_geometry():
+    ds = example()
+    ds["nitrogen_no3"] = (("time", "depth"), np.full((2, 3), 10.0))
+    result = vertical_integral(ds, "nitrate", domain="sediment")
+    np.testing.assert_allclose(result.values, [0.008, 0.008])
+
+def test_pelagic_biomass_not_registered_as_sediment_solid():
+    from ecosed_analysis.core import sediment_phase
+    assert sediment_phase("phytoplankton") is None
+    assert sediment_phase("zooplankton") is None
