@@ -16,6 +16,8 @@ def water_mask(ds: xr.Dataset) -> xr.DataArray:
         raise ValueError("sediment_mask must have dimension ('depth',).")
     if not bool(((mask == 0) | (mask == 1)).all()):
         raise ValueError("sediment_mask must contain only 0 (water) and 1 (sediment).")
+    if np.any(np.diff(np.asarray(mask.values, dtype=int)) < 0):
+        raise ValueError("Sediment layers must form a single contiguous lower block.")
     return mask == 0
 
 
@@ -62,8 +64,9 @@ def integration_weights(ds: xr.Dataset, domain: str = "water", phase: str | None
     if phase != "bulk":
         if "porosity" not in ds or ds["porosity"].dims != ("depth",):
             raise ValueError("Sediment solid/porewater integration requires porosity(depth).")
-        phi = ds["porosity"].where(sediment_mask(ds), 0)
-        if bool(((phi < 0) | (phi > 1)).any()):
-            raise ValueError("Porosity must be between 0 and 1.")
-        factor = phi if phase == "porewater" else 1 - phi
+        sed = sediment_mask(ds)
+        phi = ds["porosity"].where(sed, drop=True)
+        if bool((~np.isfinite(phi)).any()) or bool(((phi <= 0) | (phi >= 1)).any()):
+            raise ValueError("Sediment porosity must be finite and strictly between 0 and 1.")
+        factor = ds["porosity"] if phase == "porewater" else 1 - ds["porosity"]
     return (ds["dz"] * factor).where(sediment_mask(ds), 0)
