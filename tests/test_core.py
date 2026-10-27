@@ -75,7 +75,7 @@ def test_nonfinite_sediment_concentration_rejected():
     ds = example()
     ds["nitrogen_no3"][-1] = np.nan
     with pytest.raises(ValueError, match="Non-finite"):
-        vertical_integral(ds, "nitrate", domain="sediment")
+        vertical_integral(ds, "nitrate", domain="sediment", check_finite=True)
 
 def test_discontiguous_sediment_mask_rejected():
     ds = example()
@@ -93,3 +93,34 @@ def test_pelagic_biomass_not_registered_as_sediment_solid():
     from ecosed_analysis.core import sediment_phase
     assert sediment_phase("phytoplankton") is None
     assert sediment_phase("zooplankton") is None
+
+
+def test_default_missing_data_propagates():
+    ds = example()
+    ds["nitrogen_no3"][-1] = np.nan
+    result = vertical_integral(ds, "nitrate", domain="sediment")
+    assert np.isnan(float(result))
+
+
+def test_reusable_weights_equivalent():
+    from ecosed_analysis.core import integration_weights
+    ds = example()
+    weights = integration_weights(ds, domain="sediment", phase="porewater")
+    actual = vertical_integral(ds, "nitrate", domain="sediment", weights=weights)
+    expected = vertical_integral(ds, "nitrate", domain="sediment")
+    xr.testing.assert_equal(actual, expected)
+
+
+def test_nonfinite_outside_domain_is_ignored():
+    ds = example()
+    ds["nitrogen_no3"][0] = np.nan
+    result = vertical_integral(ds, "nitrate", domain="sediment", check_finite=True)
+    assert np.isclose(float(result), 0.008)
+
+
+def test_invalid_reusable_weights_depth():
+    from ecosed_analysis.core import integration_weights
+    ds = example()
+    weights = integration_weights(ds, domain="sediment", phase="porewater").isel(depth=slice(1, None))
+    with pytest.raises(ValueError, match="weights"):
+        vertical_integral(ds, "nitrate", domain="sediment", weights=weights)
