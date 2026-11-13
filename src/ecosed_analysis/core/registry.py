@@ -8,6 +8,9 @@ class VariableSpec:
     aliases: tuple[str, ...] = ()
     sediment_phase: str | None = None  # solid, porewater, or None
     label: str | None = None
+    units: str | None = None
+    quantity: str | None = None
+    kind: str = "state"
 
 
 SPECS = {
@@ -26,6 +29,54 @@ SPECS = {
     "temperature": VariableSpec("temperature", label="Temperature"),
 }
 
+
+
+# Reaction diagnostics from the default 'remin' and 'pyrite' module instances.
+# The instance prefix is essential: PYRITE_FORM is on different volume bases
+# in these two modules. Values in the sediment are converted to area rates
+# with (1 - porosity) * dz for solids and porosity * dz for porewater.
+_REMIN_SOLID = (
+    "REM", "REM_AER", "REM_DENIT", "REM_MN", "REM_FE",
+    "REM_SO4", "REM_CH4",
+)
+_REMIN_POREWATER = ("NLOSS_DENIT",)
+_REMIN_ALK = (
+    "ALK_PROD_PYRITE", "ALK_PROD_AER", "ALK_PROD_DENIT",
+    "ALK_PROD_MN", "ALK_PROD_FE", "ALK_PROD_SO4",
+    "ALK_PROD_CH4", "ALK_PROD_REM",
+)
+
+for _suffix in _REMIN_SOLID:
+    SPECS[f"remin_{_suffix}"] = VariableSpec(
+        name=f"remin_{_suffix}", sediment_phase="solid",
+        units="mmol N m-3 d-1", quantity="N", kind="rate",
+    )
+for _suffix in _REMIN_POREWATER:
+    SPECS[f"remin_{_suffix}"] = VariableSpec(
+        name=f"remin_{_suffix}", sediment_phase="porewater",
+        units="mmol N m-3 d-1", quantity="N", kind="rate",
+    )
+for _suffix in _REMIN_ALK:
+    SPECS[f"remin_{_suffix}"] = VariableSpec(
+        name=f"remin_{_suffix}", sediment_phase="porewater",
+        units="mmol eq m-3 d-1", quantity="alkalinity", kind="rate",
+    )
+# This diagnostic originates from organic-matter degradation, on the solid
+# volume basis. It is distinct from the Fe-dependent pyrite module diagnostic.
+SPECS["remin_PYRITE_FORM"] = VariableSpec(
+    name="remin_PYRITE_FORM", sediment_phase="solid",
+    units="mmol m-3 d-1", quantity="pyrite", kind="rate",
+)
+for _suffix, _phase, _units, _quantity in (
+    ("PYRITE_FORM", "porewater", "mmol m-3 d-1", "pyrite"),
+    ("PYRITE_OX_O2", "solid", "mmol m-3 d-1", "pyrite"),
+    ("ALK_PYRITE_FORM", "porewater", "mmol eq m-3 d-1", "alkalinity"),
+    ("ALK_PYRITE_OX", "porewater", "mmol eq m-3 d-1", "alkalinity"),
+):
+    SPECS[f"pyrite_{_suffix}"] = VariableSpec(
+        name=f"pyrite_{_suffix}", sediment_phase=_phase,
+        units=_units, quantity=_quantity, kind="rate",
+    )
 
 def resolve_variable(ds, name: str) -> str:
     """Find an exact NetCDF name, or the single available alias for a canonical name.
